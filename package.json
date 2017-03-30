@@ -23,7 +23,10 @@
   },
   "dependencies": {
     "aws-sdk": "^2.6.3",
-    "bluebird": "^3.4.6"
+    "bluebird": "^3.4.6",
+    "imagemin": "^5.2.2",
+    "imagemin-mozjpeg": "^6.0.0",
+    "imagemin-pngquant": "^5.0.0"
   },
   "description": "An AWS S3 storage adapter for Ghost 0.10+",
   "devDependencies": {

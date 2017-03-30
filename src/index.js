@@ -1,8 +1,12 @@
 import AWS from 'aws-sdk'
 import BaseStore from '../../../core/server/storage/base'
-import { join } from 'path'
+import { join, resolve } from 'path'
 import Promise, { promisify } from 'bluebird'
-import { readFile } from 'fs'
+import { readFile, unlink } from 'fs'
+
+import imagemin from 'imagemin'
+import imageminMozjpeg from 'imagemin-mozjpeg';
+import imageminPngquant from 'imagemin-pngquant';
 
 const readFileAsync = promisify(readFile)
 
@@ -68,26 +72,49 @@ class Store extends BaseStore {
     })
   }
 
+  minify (image, output) {
+    return new Promise((resolve, reject) => {
+      imagemin([image.path], output, {
+        plugins: [
+          imageminMozjpeg(),
+          imageminPngquant({quality: '65-80'})
+        ]
+      })
+      .then(files => {
+        resolve(files[0].path)
+      })
+      .catch(error => reject(error))
+    })
+  }
+
   save (image, targetDir) {
     const directory = targetDir || this.getTargetDir(this.pathPrefix)
+    const output = resolve(__dirname, 'tmp')
 
     return new Promise((resolve, reject) => {
-      Promise.all([
-        this.getUniqueFileName(this, image, directory),
-        readFileAsync(image.path)
-      ]).then(([ fileName, file ]) => (
-        this.s3()
-          .putObject({
-            ACL: 'public-read',
-            Body: file,
-            Bucket: this.bucket,
-            CacheControl: `max-age=${30 * 24 * 60 * 60}`,
-            ContentType: image.type,
-            Key: stripLeadingSlash(fileName)
-          })
-          .promise()
-          .then(() => resolve(`${this.host}/${fileName}`))
-      )).catch(error => reject(error))
+      this.minify(image, output)
+      .then(minifiedPath => {
+        return Promise.all([
+          this.getUniqueFileName(this, image, directory),
+          readFileAsync(minifiedPath)
+        ])
+        .then(([ fileName, file ]) => (
+          this.s3()
+            .putObject({
+              ACL: 'public-read',
+              Body: file,
+              Bucket: this.bucket,
+              CacheControl: `max-age=${30 * 24 * 60 * 60}`,
+              ContentType: image.type,
+              Key: stripLeadingSlash(fileName)
+            })
+            .promise()
+            .then(() => resolve(`${this.host}/${fileName}`))
+        ))
+        .catch(error => reject(error))
+        .finally(() => unlink(minifiedPath))
+      })
+
     })
   }
 
