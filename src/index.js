@@ -1,8 +1,9 @@
 import AWS from 'aws-sdk'
 import BaseStore from '../../../core/server/storage/base'
-import { join, resolve } from 'path'
+import { join, resolve, extname } from 'path'
 import Promise, { promisify } from 'bluebird'
 import { readFile, unlink } from 'fs'
+import UUID from 'uuid';
 
 import imagemin from 'imagemin'
 import imageminMozjpeg from 'imagemin-mozjpeg';
@@ -134,6 +135,19 @@ class Store extends BaseStore {
               next()
             })
             .pipe(res)
+    }
+  }
+
+  getUniqueFileName (store, image, targetDir) {
+    var ext = extname(image.name), name
+    var name = this.getSanitizedFileName(this.bucket + '_' + UUID.v4())
+
+    // poor extension validation
+    // .1 is not a valid extension
+    if (!ext.match(/.\d/)) {
+      return this.generateUnique(store, targetDir, name, ext, 0)
+    } else {
+      return this.generateUnique(store, targetDir, name, null, 0)
     }
   }
 }
